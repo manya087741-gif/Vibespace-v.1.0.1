@@ -1,0 +1,6 @@
+{
+  "name": "VibeSpace - Privacy-First Social Network & Architecture",
+  "description": "Next-gen high-performance social platform surpassing Instagram with anti-screenshot security, E2EE messaging, 120Hz reels engine, and complete system architecture blueprints.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

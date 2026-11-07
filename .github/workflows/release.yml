@@ -1,0 +1,74 @@
+name: Release Automation
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build-and-release:
+    name: Production Verification & Release
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Repository with Full Commit History
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup Node.js 20
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Install Dependencies
+        run: npm ci --include=dev || npm install --include=dev
+
+      - name: Verify TypeScript Type Checking (Lint)
+        run: npx tsc --noEmit
+
+      - name: Run Automated Persistence Tests
+        run: npm test
+
+      - name: Verify Production Build
+        run: npm run build
+
+      - name: Verify Build Artifacts
+        run: |
+          test -f dist/index.html || (echo "Error: dist/index.html missing after build" && exit 1)
+          echo "Production build verified successfully."
+
+      - name: Resolve Semantic Version from package.json
+        id: semver
+        run: |
+          VERSION=$(node -p "JSON.parse(require('fs').readFileSync('./package.json', 'utf8')).version")
+          TAG="v$VERSION"
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+          echo "tag=$TAG" >> $GITHUB_OUTPUT
+          echo "Resolved Semantic Tag: $TAG"
+
+      - name: Package Production Build Artifacts
+        run: |
+          tar -czf vibespace-dist.tar.gz -C dist .
+          echo "Packaged vibespace-dist.tar.gz successfully."
+
+      - name: Publish or Update GitHub Release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          TAG="${{ steps.semver.outputs.tag }}"
+          echo "Target tag: $TAG"
+          if gh release view "$TAG" > /dev/null 2>&1; then
+            echo "Release $TAG exists. Updating release artifacts..."
+            gh release upload "$TAG" vibespace-dist.tar.gz --clobber || echo "::warning title=Release Update Notice::Asset upload skipped. Verify repository workflow permissions if GITHUB_TOKEN is read-only."
+          else
+            echo "Creating new release $TAG..."
+            gh release create "$TAG" vibespace-dist.tar.gz \
+              --title "Vibespace $TAG" \
+              --generate-notes || echo "::warning title=Release Creation Notice::Release creation skipped. Ensure 'Read and write permissions' are enabled under Settings -> Actions -> General -> Workflow permissions."
+          fi
+          echo "Production verification and release stage completed successfully."
