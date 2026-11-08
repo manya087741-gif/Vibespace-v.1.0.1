@@ -59,6 +59,7 @@ jobs:
       - name: Publish or Update GitHub Release
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_REPO: ${{ github.repository }}
         run: |
           TAG="${{ steps.semver.outputs.tag }}"
           echo "Target tag: $TAG"
