@@ -876,14 +876,18 @@ app.post('/api/v1/security/scan-url', (req, res) => {
 
 async function startServer() {
   loadDb();
-  const PORT = 3000;
+  const PORT = Number(process.env.PORT) || 3000;
+
+  // Serve static assets across all modes
+  app.use('/src/assets', express.static(path.join(__dirname, 'src/assets')));
+
   if (process.env.NODE_ENV !== 'production') {
     const vite = await createViteServer({
       server: { middlewareMode: true },
       appType: 'spa',
     });
     app.use(vite.middlewares);
-    app.use('/src/assets', express.static(path.join(__dirname, 'src/assets')));
+  } else {
     app.use(express.static(path.join(__dirname, 'dist')));
     app.get('*', (_req, res) => {
       res.sendFile(path.join(__dirname, 'dist', 'index.html'));
@@ -895,4 +899,7 @@ async function startServer() {
   });
 }
 
-startServer();
+startServer().catch((err) => {
+  console.error('[Server Error] Failed to start server:', err);
+  process.exit(1);
+});
