@@ -19,6 +19,17 @@ jobs:
         with:
           fetch-depth: 0
 
+      - name: Setup Java JDK 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'temurin'
+          java-version: '17'
+          cache: 'gradle'
+
+      - name: Accept Android SDK Licenses
+        run: |
+          yes | sdkmanager --licenses || true
+
       - name: Setup Node.js 20
         uses: actions/setup-node@v4
         with:
@@ -34,13 +45,51 @@ jobs:
       - name: Run Automated Persistence Tests
         run: npm test
 
-      - name: Verify Production Build
+      - name: Verify Production Web Build
         run: npm run build
 
-      - name: Verify Build Artifacts
+      - name: Verify Web Build Artifacts
         run: |
           test -f dist/index.html || (echo "Error: dist/index.html missing after build" && exit 1)
-          echo "Production build verified successfully."
+          echo "Production web build verified successfully."
+
+      - name: Synchronize Web Assets to Android Platform
+        run: |
+          npx cap sync android
+
+      - name: Make Gradlew Executable
+        run: |
+          chmod +x android/gradlew
+
+      - name: Build Android Debug and Release APKs
+        run: |
+          cd android
+          ./gradlew assembleDebug assembleRelease --stacktrace
+          cd ..
+
+      - name: Collect and Verify Generated APKs
+        run: |
+          echo "Locating generated APK files..."
+          # Locate and copy Debug APK
+          if [ -f android/app/build/outputs/apk/debug/app-debug.apk ]; then
+            cp android/app/build/outputs/apk/debug/app-debug.apk Vibespace-debug.apk
+            echo "Successfully generated: Vibespace-debug.apk"
+          else
+            echo "Error: Debug APK not found in outputs" && exit 1
+          fi
+
+          # Locate and copy Release APK
+          if [ -f android/app/build/outputs/apk/release/app-release.apk ]; then
+            cp android/app/build/outputs/apk/release/app-release.apk Vibespace-release.apk
+            echo "Successfully generated: Vibespace-release.apk"
+          elif [ -f android/app/build/outputs/apk/release/app-release-unsigned.apk ]; then
+            cp android/app/build/outputs/apk/release/app-release-unsigned.apk Vibespace-release.apk
+            echo "Successfully generated: Vibespace-release.apk (unsigned)"
+          else
+            echo "Error: Release APK not found in outputs" && exit 1
+          fi
+
+          ls -lh Vibespace-debug.apk Vibespace-release.apk
 
       - name: Resolve Semantic Version from package.json
         id: semver
@@ -51,12 +100,22 @@ jobs:
           echo "tag=$TAG" >> $GITHUB_OUTPUT
           echo "Resolved Semantic Tag: $TAG"
 
-      - name: Package Production Build Artifacts
+      - name: Package Production Web Dist Artifacts
         run: |
           tar -czf vibespace-dist.tar.gz -C dist .
           echo "Packaged vibespace-dist.tar.gz successfully."
 
-      - name: Publish or Update GitHub Release
+      - name: Upload Build Artifacts to GitHub Actions
+        uses: actions/upload-artifact@v4
+        with:
+          name: Vibespace-Release-Artifacts
+          path: |
+            Vibespace-debug.apk
+            Vibespace-release.apk
+            vibespace-dist.tar.gz
+          if-no-files-found: error
+
+      - name: Publish or Update GitHub Release with APKs and Web Bundle
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           GH_REPO: ${{ github.repository }}
@@ -66,10 +125,10 @@ jobs:
           echo "Target repository: $REPO, tag: $TAG"
           if gh release view "$TAG" --repo "$REPO" > /dev/null 2>&1; then
             echo "Release $TAG exists. Updating release artifacts..."
-            gh release upload "$TAG" vibespace-dist.tar.gz --repo "$REPO" --clobber || echo "::warning title=Release Update Notice::Asset upload skipped. Verify repository workflow permissions if GITHUB_TOKEN is read-only."
+            gh release upload "$TAG" Vibespace-debug.apk Vibespace-release.apk vibespace-dist.tar.gz --repo "$REPO" --clobber || echo "::warning title=Release Update Notice::Asset upload skipped. Verify repository workflow permissions if GITHUB_TOKEN is read-only."
           else
             echo "Creating new release $TAG..."
-            gh release create "$TAG" vibespace-dist.tar.gz \
+            gh release create "$TAG" Vibespace-debug.apk Vibespace-release.apk vibespace-dist.tar.gz \
               --repo "$REPO" \
               --title "Vibespace $TAG" \
               --generate-notes || echo "::warning title=Release Creation Notice::Release creation skipped. Ensure 'Read and write permissions' are enabled under Settings -> Actions -> General -> Workflow permissions."
