@@ -26,9 +26,22 @@ jobs:
           java-version: '17'
           cache: 'gradle'
 
-      - name: Accept Android SDK Licenses
+      - name: Configure Android SDK Environment and Accept Licenses
         run: |
-          yes | sdkmanager --licenses || true
+          echo "Configuring Android SDK environment..."
+          ANDROID_ROOT="/usr/local/lib/android/sdk"
+          if [ -d "$ANDROID_ROOT" ]; then
+            echo "ANDROID_HOME=$ANDROID_ROOT" >> $GITHUB_ENV
+            echo "ANDROID_SDK_ROOT=$ANDROID_ROOT" >> $GITHUB_ENV
+            echo "$ANDROID_ROOT/cmdline-tools/latest/bin" >> $GITHUB_PATH
+            echo "$ANDROID_ROOT/platform-tools" >> $GITHUB_PATH
+            mkdir -p android
+            echo "sdk.dir=$ANDROID_ROOT" > android/local.properties
+            if [ -f "$ANDROID_ROOT/cmdline-tools/latest/bin/sdkmanager" ]; then
+              yes | "$ANDROID_ROOT/cmdline-tools/latest/bin/sdkmanager" --licenses || true
+              "$ANDROID_ROOT/cmdline-tools/latest/bin/sdkmanager" "platforms;android-35" "build-tools;35.0.0" || true
+            fi
+          fi
 
       - name: Setup Node.js 20
         uses: actions/setup-node@v4
@@ -71,20 +84,19 @@ jobs:
         run: |
           echo "Locating generated APK files..."
           # Locate and copy Debug APK
-          if [ -f android/app/build/outputs/apk/debug/app-debug.apk ]; then
-            cp android/app/build/outputs/apk/debug/app-debug.apk Vibespace-debug.apk
-            echo "Successfully generated: Vibespace-debug.apk"
+          DEBUG_APK=$(find android/app/build/outputs/apk -name "*debug*.apk" 2>/dev/null | head -n 1)
+          if [ -n "$DEBUG_APK" ] && [ -f "$DEBUG_APK" ]; then
+            cp "$DEBUG_APK" Vibespace-debug.apk
+            echo "Successfully collected: Vibespace-debug.apk from $DEBUG_APK"
           else
             echo "Error: Debug APK not found in outputs" && exit 1
           fi
 
           # Locate and copy Release APK
-          if [ -f android/app/build/outputs/apk/release/app-release.apk ]; then
-            cp android/app/build/outputs/apk/release/app-release.apk Vibespace-release.apk
-            echo "Successfully generated: Vibespace-release.apk"
-          elif [ -f android/app/build/outputs/apk/release/app-release-unsigned.apk ]; then
-            cp android/app/build/outputs/apk/release/app-release-unsigned.apk Vibespace-release.apk
-            echo "Successfully generated: Vibespace-release.apk (unsigned)"
+          RELEASE_APK=$(find android/app/build/outputs/apk -name "*release*.apk" 2>/dev/null | head -n 1)
+          if [ -n "$RELEASE_APK" ] && [ -f "$RELEASE_APK" ]; then
+            cp "$RELEASE_APK" Vibespace-release.apk
+            echo "Successfully collected: Vibespace-release.apk from $RELEASE_APK"
           else
             echo "Error: Release APK not found in outputs" && exit 1
           fi
