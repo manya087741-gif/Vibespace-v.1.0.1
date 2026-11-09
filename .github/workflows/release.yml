@@ -66,18 +66,71 @@ jobs:
           test -f dist/index.html || (echo "Error: dist/index.html missing after build" && exit 1)
           echo "Production web build verified successfully."
 
+      - name: Ensure Android Native Configuration and Wrapper
+        run: |
+          echo "Verifying Android native platform structure..."
+          mkdir -p android/gradle/wrapper
+
+          # 1. Ensure android/settings.gradle exists
+          if [ ! -f "android/settings.gradle" ]; then
+            echo "Generating missing android/settings.gradle..."
+            cat << 'EOF' > android/settings.gradle
+include ':app'
+include ':capacitor-cordova-android-plugins'
+project(':capacitor-cordova-android-plugins').projectDir = new File('./capacitor-cordova-android-plugins/')
+
+apply from: 'capacitor.settings.gradle'
+EOF
+          fi
+
+          # 2. Ensure android/capacitor.settings.gradle exists
+          if [ ! -f "android/capacitor.settings.gradle" ]; then
+            echo "Generating missing android/capacitor.settings.gradle..."
+            cat << 'EOF' > android/capacitor.settings.gradle
+include ':capacitor-android'
+project(':capacitor-android').projectDir = new File('../node_modules/@capacitor/android/capacitor')
+EOF
+          fi
+
+          # 3. Ensure android/gradle/wrapper/gradle-wrapper.properties exists
+          if [ ! -f "android/gradle/wrapper/gradle-wrapper.properties" ]; then
+            echo "Generating missing android/gradle/wrapper/gradle-wrapper.properties..."
+            cat << 'EOF' > android/gradle/wrapper/gradle-wrapper.properties
+distributionBase=GRADLE_USER_HOME
+distributionPath=wrapper/dists
+distributionUrl=https\://services.gradle.org/distributions/gradle-8.14.3-all.zip
+networkTimeout=10000
+validateDistributionUrl=true
+zipStoreBase=GRADLE_USER_HOME
+zipStorePath=wrapper/dists
+EOF
+          fi
+
+          # 4. Ensure gradle wrapper binary exists or generate via system gradle
+          if [ ! -f "android/gradlew" ] || [ ! -f "android/gradle/wrapper/gradle-wrapper.jar" ]; then
+            echo "Gradle wrapper binary missing, generating via system gradle..."
+            if command -v gradle >/dev/null 2>&1; then
+              gradle wrapper --gradle-version 8.14.3 --project-dir android || gradle wrapper --project-dir android || true
+            fi
+          fi
+
+          if [ -f "android/gradlew" ]; then
+            chmod +x android/gradlew
+          fi
+
       - name: Synchronize Web Assets to Android Platform
         run: |
           npx cap sync android
 
-      - name: Make Gradlew Executable
-        run: |
-          chmod +x android/gradlew
-
       - name: Build Android Debug and Release APKs
         run: |
           cd android
-          ./gradlew assembleDebug assembleRelease --stacktrace
+          if [ -f "./gradlew" ]; then
+            chmod +x ./gradlew
+            ./gradlew assembleDebug assembleRelease --stacktrace
+          else
+            gradle assembleDebug assembleRelease --stacktrace
+          fi
           cd ..
 
       - name: Collect and Verify Generated APKs
