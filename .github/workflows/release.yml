@@ -39,7 +39,7 @@ jobs:
             echo "sdk.dir=$ANDROID_ROOT" > android/local.properties
             if [ -f "$ANDROID_ROOT/cmdline-tools/latest/bin/sdkmanager" ]; then
               yes | "$ANDROID_ROOT/cmdline-tools/latest/bin/sdkmanager" --licenses || true
-              "$ANDROID_ROOT/cmdline-tools/latest/bin/sdkmanager" "platforms;android-35" "build-tools;35.0.0" || true
+              "$ANDROID_ROOT/cmdline-tools/latest/bin/sdkmanager" "platforms;android-36" "platforms;android-35" "build-tools;36.0.0" "build-tools;35.0.0" || true
             fi
           fi
 
