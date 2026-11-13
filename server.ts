@@ -5,9 +5,9 @@ import dotenv from 'dotenv';
 import path from 'path';
 import fs from 'fs';
 import { fileURLToPath } from 'url';
-import { CURRENT_USER, MOCK_USERS, MOCK_POSTS, MOCK_REELS, MOCK_STORIES, MOCK_CHATS, MOCK_NOTES } from './src/data/mockData';
-import { Post, Reel, Story, User, ChatThread, Message } from './src/types';
-import { DiskPersistence } from './src/server/dbPersistence';
+import { CURRENT_USER, MOCK_USERS, MOCK_POSTS, MOCK_REELS, MOCK_STORIES, MOCK_CHATS, MOCK_NOTES } from './src/data/mockData.ts';
+import type { Post, Reel, Story, User, ChatThread, Message } from './src/types/index.ts';
+import { DiskPersistence } from './src/server/dbPersistence.ts';
 
 dotenv.config();
 

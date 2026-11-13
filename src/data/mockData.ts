@@ -1,4 +1,4 @@
-import { User, Post, Reel, Story, StoryHighlight, ChatThread, MessengerNote } from '../types';
+import type { User, Post, Reel, Story, StoryHighlight, ChatThread, MessengerNote } from '../types/index.ts';
 
 export const CURRENT_USER: User = {
   id: 'usr_me',
